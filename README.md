@@ -35,7 +35,7 @@ cd port-checker
 ## Run with Docker Compose
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
 Open:
