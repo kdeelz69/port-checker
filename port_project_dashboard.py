@@ -106,17 +106,30 @@ HTML = r'''<!doctype html>
       display: grid;
       gap: 14px;
     }
-    .project-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
-      margin-bottom: 12px;
+    .hero {
+      display: grid;
+      grid-template-columns: 1.2fr 2fr 1fr;
+      gap: 10px;
+      margin: 2px 0 10px;
     }
-    .project-title {
-      font-size: 20px;
+    .hero-item {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .hero-k {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 4px;
+    }
+    .hero-v {
       font-weight: 800;
-      margin-bottom: 6px;
+      font-size: 16px;
+      line-height: 1.3;
+      word-break: break-word;
     }
     .meta {
       color: var(--muted);
@@ -153,9 +166,32 @@ HTML = r'''<!doctype html>
     th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
     .empty { text-align: center; color: var(--muted); padding: 30px; }
+    details.more {
+      margin-top: 6px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(11, 16, 32, .45);
+      overflow: hidden;
+    }
+    details.more > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 11px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      border-bottom: 1px solid transparent;
+      user-select: none;
+    }
+    details.more > summary::-webkit-details-marker { display: none; }
+    details.more[open] > summary {
+      border-bottom-color: var(--line);
+      color: var(--text);
+    }
+    .details-wrap { padding: 8px 10px 10px; }
     @media (max-width: 900px) {
       .toolbar, .stats { grid-template-columns: 1fr; }
-      .project-head { flex-direction: column; }
+      .hero { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -277,17 +313,14 @@ function render(groups, groupBy) {
   root.innerHTML = groups.map(group => {
     const s = group.sample || {};
     const title = esc(group.key);
-    const subtitle = groupBy === 'project'
-      ? `<div class="meta">Primary dir: ${esc(s.cwd || '-')}<br>Executable: ${esc(s.exe || '-')}</div>`
-      : `<div class="meta">Project: ${esc(s.project_name || '-')}</div>`;
+    const primaryDir = esc(s.cwd || '-');
+    const primaryPorts = formatPorts(group.items);
 
     const rows = group.items.map(item => `
       <tr>
         <td>${esc(item.source || '-')}</td>
         <td>${esc(item.name || '-')}</td>
         <td class="mono">${esc(String(item.pid || '-'))}</td>
-        <td>${(item.ports || []).map(p => `<span class="chip good">${esc((p.host || '0.0.0.0') + ':' + p.port)}</span>`).join(' ') || '<span class="chip warn">-</span>'}</td>
-        <td class="mono">${esc(item.cwd || '-')}</td>
         <td class="mono">${esc(item.exe || '-')}</td>
         <td class="mono">${esc(item.cmdline || '-')}</td>
       </tr>
@@ -295,31 +328,37 @@ function render(groups, groupBy) {
 
     return `
       <div class="card">
-        <div class="project-head">
-          <div>
-            <div class="project-title">${title}</div>
-            ${subtitle}
+        <div class="hero">
+          <div class="hero-item">
+            <div class="hero-k">Project</div>
+            <div class="hero-v">${title}</div>
           </div>
-          <div class="chips">
-            <span class="chip">Processes: ${group.items.length}</span>
-            <span class="chip">Ports: ${group.portCount}</span>
-            ${formatPorts(group.items)}
+          <div class="hero-item">
+            <div class="hero-k">Path</div>
+            <div class="hero-v mono">${primaryDir}</div>
+          </div>
+          <div class="hero-item">
+            <div class="hero-k">Ports</div>
+            <div class="hero-v">${primaryPorts}</div>
           </div>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Source</th>
-              <th>Process</th>
-              <th>PID</th>
-              <th>Ports</th>
-              <th>Working Dir</th>
-              <th>Executable</th>
-              <th>Command</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <details class="more">
+          <summary>Show details (${group.items.length} process${group.items.length === 1 ? '' : 'es'})</summary>
+          <div class="details-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>Process</th>
+                  <th>PID</th>
+                  <th>Executable</th>
+                  <th>Command</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </details>
       </div>
     `;
   }).join('');
