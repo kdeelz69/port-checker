@@ -23,6 +23,15 @@ A lightweight Flask dashboard that shows which processes are listening on which 
 - Docker Desktop or Docker Engine
 - Docker Compose v2
 
+## Get the Code
+
+From your terminal, clone the repository and move into it:
+
+```bash
+git clone https://github.com/kdeelz69/port-checker.git
+cd port-checker
+```
+
 ## Run with Docker Compose
 
 ```bash
