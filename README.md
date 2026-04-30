@@ -1,15 +1,27 @@
 # Port Checker Dashboard
 
-A lightweight Flask dashboard that shows which processes are listening on which ports, grouped by project-like context (working directory, executable path, and command).
+A Flask dashboard for monitoring Docker container service ports and runtime health.
+
+By default in this repository (`docker-compose.yml`), it runs in **Docker-only mode** (`PORT_DASHBOARD_MODE=docker`), so it tracks containers from the Docker Engine API, not general host OS processes.
 
 ## What It Shows
 
-- Listening TCP/UDP (inet) ports
-- Process name and PID
-- Executable path
-- Working directory
-- Full command line
-- Smart grouping and filtering in the UI
+- Docker containers (running and stopped) grouped by project/service context
+- Published/listening container ports exposed through Docker networking
+- Container status (`ACTIVE` / `NOT RUNNING` / `PARTIAL`)
+- Container metadata (name, image, command, pid when available)
+- Real-time memory totals in the dashboard
+- System health values:
+  - Core services: running/total container count
+  - Storage volume: live disk free %
+  - Memory usage: summed tracked container/process memory
+  - API latency: live request round-trip time from browser
+
+## Scope Clarification
+
+- With current compose defaults, this project is **not** a full host-wide port scanner.
+- It is focused on **Docker workloads** visible through Docker API access (`/var/run/docker.sock`).
+- Host process/host port scanning exists in code as hybrid mode, but is disabled in this repo’s compose configuration.
 
 ## Tech Stack
 
@@ -59,6 +71,7 @@ docker run --rm -p 5001:5001 --name port-checker port-checker
 
 - `PORT_DASHBOARD_HOST` (default: `0.0.0.0`)
 - `PORT_DASHBOARD_PORT` (default: `5001`)
+- `PORT_DASHBOARD_MODE` (`docker` for container-only, `hybrid` for host + docker)
 - `INCLUDE_DOCKER_CONTAINERS` (default: `1`)
 
 ## Platform Notes (Important)
