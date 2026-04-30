@@ -6,7 +6,7 @@ By default in this repository (`docker-compose.yml`), it runs in **Docker-only m
 
 ## UI Preview
 
-![Project Port Dashboard UI](docs/images/dashboard-ui.png)
+![Project Port Dashboard UI](docs/images/image.png)
 
 ## What It Shows
 
