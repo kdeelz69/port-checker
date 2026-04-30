@@ -4,6 +4,10 @@ A Flask dashboard for monitoring Docker container service ports and runtime heal
 
 By default in this repository (`docker-compose.yml`), it runs in **Docker-only mode** (`PORT_DASHBOARD_MODE=docker`), so it tracks containers from the Docker Engine API, not general host OS processes.
 
+## UI Preview
+
+![Project Port Dashboard UI](docs/images/dashboard-ui.png)
+
 ## What It Shows
 
 - Docker containers (running and stopped) grouped by project/service context
