@@ -4,7 +4,7 @@ import socket
 from collections import defaultdict
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, jsonify, render_template_string, request
 
 try:
     import psutil
@@ -28,18 +28,18 @@ HTML = r'''<!doctype html>
   <title>Project Port Dashboard</title>
   <style>
     :root {
-      --bg: #edf0ef;
-      --panel: #f7f9f8;
-      --line: #cfd8d6;
-      --line-soft: #dde4e2;
-      --text: #101c28;
-      --muted: #6b7b84;
-      --teal: #178f8d;
+      --bg: #f3f5fa;
+      --panel: #ffffff;
+      --line: #dfe4eb;
+      --line-soft: #e8edf3;
+      --text: #243243;
+      --muted: #7c8997;
+      --teal: #1fa687;
       --blue: #2d71d2;
-      --orange: #c57646;
-      --danger: #cf655f;
-      --ok-bg: #dff2ee;
-      --ok-fg: #1f7b6c;
+      --orange: #d08742;
+      --danger: #cf5656;
+      --ok-bg: #e5f7f1;
+      --ok-fg: #18825f;
     }
     * { box-sizing: border-box; }
     body {
@@ -49,9 +49,10 @@ HTML = r'''<!doctype html>
       color: var(--text);
     }
     .wrap {
-      max-width: 1180px;
+      width: 100%;
+      max-width: 1400px;
       margin: 0 auto;
-      padding: 12px 14px 28px;
+      padding: 14px 22px 24px;
     }
     .top {
       display: flex;
@@ -61,8 +62,8 @@ HTML = r'''<!doctype html>
       margin-bottom: 12px;
     }
     h1 {
-      margin: 0 0 3px;
-      font-size: 42px;
+      margin: 0;
+      font-size: 50px;
       font-weight: 800;
     }
     .sub {
@@ -82,19 +83,23 @@ HTML = r'''<!doctype html>
     }
     .toolbar {
       display: grid;
-      grid-template-columns: 1fr 132px 132px 100px;
+      grid-template-columns: 1fr 150px 150px 120px;
       gap: 8px;
-      margin-bottom: 10px;
+      margin-bottom: 14px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 12px;
     }
     input, select, button {
       width: 100%;
-      padding: 8px 9px;
-      border-radius: 6px;
+      padding: 11px 12px;
+      border-radius: 10px;
       border: 1px solid var(--line-soft);
       background: #f8fbfa;
       color: var(--text);
       outline: none;
-      font-size: 12px;
+      font-size: 16px;
     }
     input::placeholder { color: #8c9ca3; }
     select { color: #4d5f6a; }
@@ -105,6 +110,10 @@ HTML = r'''<!doctype html>
       font-weight: 700;
       border: 1px solid #cfdbd8;
     }
+    input:focus, select:focus, button:focus {
+      border-color: #80b9b0;
+      box-shadow: 0 0 0 3px rgba(80, 158, 145, 0.16);
+    }
     .stats {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -114,7 +123,7 @@ HTML = r'''<!doctype html>
     .card {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: 12px;
       padding: 12px;
     }
     .label {
@@ -126,7 +135,7 @@ HTML = r'''<!doctype html>
       font-weight: 700;
     }
     .value {
-      font-size: 36px;
+      font-size: 46px;
       font-weight: 800;
       line-height: 1;
       display: inline-block;
@@ -136,7 +145,11 @@ HTML = r'''<!doctype html>
       font-size: 11px;
       color: var(--muted);
     }
-    .grid { display: grid; gap: 10px; }
+    .grid {
+      display: grid;
+      gap: 8px;
+      padding: 0 6px;
+    }
     .section-head {
       display: flex;
       justify-content: space-between;
@@ -144,7 +157,7 @@ HTML = r'''<!doctype html>
       margin: 10px 0 8px;
     }
     .section-title {
-      font-size: 30px;
+      font-size: 44px;
       font-weight: 800;
     }
     .right-meta { display: flex; gap: 6px; }
@@ -159,62 +172,81 @@ HTML = r'''<!doctype html>
     .project-card {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: 14px;
       overflow: hidden;
     }
     .project-main {
       display: grid;
-      grid-template-columns: minmax(220px, 1.2fr) 64px 92px 92px minmax(260px, 1fr) 88px;
-      gap: 10px;
+      grid-template-columns: minmax(260px, 1.25fr) minmax(420px, 1fr) minmax(360px, auto);
+      gap: 16px;
       align-items: center;
-      padding: 10px 12px;
+      padding: 18px 20px;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(110px, 1fr));
+      gap: 16px;
+      align-items: center;
     }
     .namewrap {
       display: flex;
       align-items: center;
       gap: 10px;
     }
+    .namecol {
+      display: grid;
+      gap: 8px;
+    }
     .logo {
-      width: 30px;
-      height: 30px;
-      border-radius: 5px;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
       background: #138f8f;
       color: #fff;
-      font-size: 15px;
+      font-size: 20px;
       font-weight: 800;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .title {
-      font-size: 16px;
+      font-size: 34px;
       font-weight: 750;
       margin: 0 0 3px;
     }
     .meta {
       color: #74858e;
-      font-size: 10px;
+      font-size: 14px;
       word-break: break-word;
     }
     .metric {
-      font-size: 10px;
+      font-size: 12px;
       color: #6d7d85;
       text-transform: uppercase;
       font-weight: 700;
       letter-spacing: .05em;
+      white-space: nowrap;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      line-height: 1.05;
     }
     .metric b {
-      margin-left: 7px;
+      margin-left: 0;
       color: #183542;
-      font-size: 12px;
+      font-size: 18px;
       letter-spacing: 0;
       text-transform: none;
+      line-height: 1;
     }
     .ports {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
       flex-wrap: wrap;
+      justify-content: flex-end;
+      min-height: 38px;
     }
     .portline {
       width: 28px;
@@ -228,7 +260,7 @@ HTML = r'''<!doctype html>
       background: #e7f6f1;
       border-radius: 999px;
       padding: 4px 8px;
-      font-size: 10px;
+      font-size: 12px;
       color: #1e7d6b;
       font-weight: 700;
     }
@@ -237,19 +269,20 @@ HTML = r'''<!doctype html>
       background: #fff2e7;
       border-radius: 999px;
       padding: 4px 8px;
-      font-size: 10px;
+      font-size: 12px;
       color: var(--orange);
       font-weight: 700;
     }
     .status-badge {
-      font-size: 10px;
+      font-size: 13px;
       border-radius: 999px;
-      padding: 4px 9px;
+      padding: 6px 11px;
       border: 1px solid #b8ddd4;
       background: var(--ok-bg);
       color: var(--ok-fg);
       font-weight: 700;
       text-transform: uppercase;
+      white-space: nowrap;
     }
     .status-badge.warn {
       border-color: #e8c6c2;
@@ -263,11 +296,32 @@ HTML = r'''<!doctype html>
     }
     .actions {
       display: flex;
-      gap: 6px;
-      justify-content: flex-end;
+      gap: 8px;
+      justify-content: flex-start;
+      flex-wrap: wrap;
       color: #80929b;
       font-size: 13px;
       font-weight: 800;
+    }
+    .action-btn {
+      border: 1px solid #bdd1cd;
+      background: #eef5f3;
+      color: #355e64;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      width: auto;
+      min-width: 90px;
+      transition: background .15s ease, border-color .15s ease, transform .06s ease;
+      white-space: nowrap;
+    }
+    .action-btn:hover { background: #e3efec; border-color: #aac7c1; }
+    .action-btn:active { transform: translateY(1px); }
+    .action-btn:disabled {
+      opacity: .55;
+      cursor: not-allowed;
     }
     details.more {
       border-top: 1px solid var(--line-soft);
@@ -276,15 +330,16 @@ HTML = r'''<!doctype html>
     details.more > summary {
       list-style: none;
       cursor: pointer;
-      padding: 8px 10px;
+      padding: 10px 20px;
       color: #56707b;
-      font-size: 11px;
+      font-size: 13px;
       font-weight: 700;
       text-align: center;
       user-select: none;
+      border-top: 1px solid var(--line-soft);
     }
     details.more > summary::-webkit-details-marker { display: none; }
-    .details-wrap { padding: 0 10px 10px; }
+    .details-wrap { padding: 0 20px 12px; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -296,7 +351,7 @@ HTML = r'''<!doctype html>
     }
     th, td {
       text-align: left;
-      padding: 7px 8px;
+      padding: 8px 10px;
       border-top: 1px solid var(--line-soft);
       vertical-align: top;
       word-break: break-word;
@@ -315,7 +370,7 @@ HTML = r'''<!doctype html>
     }
     .panel {
       border: 1px solid var(--line);
-      border-radius: 8px;
+      border-radius: 12px;
       background: var(--panel);
       padding: 12px;
     }
@@ -398,16 +453,24 @@ HTML = r'''<!doctype html>
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    @media (max-width: 1200px) {
+      .project-main {
+        grid-template-columns: minmax(220px, 1.2fr) 1fr;
+      }
+      .metrics { grid-template-columns: repeat(3, minmax(90px, 1fr)); }
+      .ports { grid-column: 1 / -1; justify-content: flex-start; }
+    }
     @media (max-width: 900px) {
-      h1 { font-size: 34px; }
+      h1 { font-size: 36px; }
       .top { flex-direction: column; align-items: stretch; }
       .toolbar, .stats { grid-template-columns: 1fr; }
       .project-main { grid-template-columns: 1fr; }
       .actions { justify-content: flex-start; }
       .dashboard-bottom { grid-template-columns: 1fr; }
+      .ports { margin-top: 4px; }
     }
     @media (max-width: 560px) {
-      h1 { font-size: 28px; }
+      h1 { font-size: 30px; }
       .section-title { font-size: 24px; }
       .right-meta { display: none; }
     }
@@ -482,12 +545,12 @@ HTML = r'''<!doctype html>
       </div>
     </div>
   </div>
-
 <script>
 let raw = [];
 const openDetails = new Set();
 let isLoading = false;
 let currentController = null;
+let protectedNames = [];
 
 function setLoading(on) {
   isLoading = on;
@@ -563,6 +626,41 @@ function updateSystemHealth(meta) {
   if (storageEl) {
     const free = Number(meta?.disk_free_percent ?? -1);
     storageEl.textContent = free >= 0 ? `${free.toFixed(1)}% FREE` : '--';
+  }
+  const pn = meta?.protected_names;
+  protectedNames = Array.isArray(pn) ? pn.map(x => String(x || '').trim()).filter(Boolean) : [];
+}
+
+async function runContainerAction(action, names) {
+  if (!Array.isArray(names) || !names.length) return;
+  if ((action === 'stop' || action === 'restart') && protectedNames.length) {
+    const targetSet = new Set(names.map(x => String(x || '').trim().toLowerCase()));
+    const risky = protectedNames.filter(x => targetSet.has(String(x).toLowerCase()));
+    if (risky.length) {
+      const msg = action === 'stop'
+        ? `Warning: You are trying to STOP the dashboard container (${risky.join(', ')}). This can make the UI unavailable. Continue?`
+        : `Warning: You are trying to RESTART the dashboard container (${risky.join(', ')}). UI may disconnect briefly. Continue?`;
+      if (!window.confirm(msg)) return;
+    }
+  }
+  setLoading(true);
+  showError('');
+  try {
+    const res = await fetch('/api/container-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, names }),
+      cache: 'no-store',
+    });
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const out = await res.json();
+    if (out && out.ok === false) throw new Error(out.error || 'action failed');
+    setLoading(false);
+    await loadData();
+  } catch (err) {
+    showError(`Action failed: ${err.message || 'unknown error'}`);
+  } finally {
+    setLoading(false);
   }
 }
 
@@ -643,6 +741,11 @@ function render(groups, groupBy) {
         ? '<span class="status-badge warn">Partial</span>'
         : (hot ? '<span class="status-badge warn">High Load</span>' : '<span class="status-badge">Active</span>'));
     const portLine = '<span class="portline"></span>';
+    const containerNames = [...new Set(group.items.filter(x => x.source === 'docker').map(x => x.name).filter(Boolean))];
+    const canControl = containerNames.length > 0;
+    const canStart = canControl && group.runningCount < group.items.length;
+    const canStop = canControl && group.runningCount > 0;
+    const namesPayload = containerNames.map(n => encodeURIComponent(String(n))).join(',');
     const rows = group.items.map(item => `
       <tr>
         <td>${esc(item.source || '-')}</td>
@@ -656,25 +759,29 @@ function render(groups, groupBy) {
     return `
       <div class="project-card">
         <div class="project-main">
-          <div class="namewrap">
-            <div class="logo">${s.source === 'docker' ? 'D' : 'H'}</div>
-            <div>
-              <div class="title">${title}</div>
-              <div class="meta mono">${primaryDir}</div>
+          <div class="namecol">
+            <div class="namewrap">
+              <div class="logo">${s.source === 'docker' ? 'D' : 'H'}</div>
+              <div>
+                <div class="title">${title}</div>
+                <div class="meta mono">${primaryDir}</div>
+              </div>
+            </div>
+            <div class="actions">
+              <button type="button" class="action-btn js-action" data-action="start" data-names="${namesPayload}" ${canStart ? '' : 'disabled'}>Start</button>
+              <button type="button" class="action-btn js-action" data-action="stop" data-names="${namesPayload}" ${canStop ? '' : 'disabled'}>Stop</button>
+              <button type="button" class="action-btn js-action" data-action="restart" data-names="${namesPayload}" ${canControl ? '' : 'disabled'}>Restart</button>
             </div>
           </div>
-          <div class="metric">CPU <b>${hasRunning ? `${cpu}%` : '--'}</b></div>
-          <div class="metric">Memory <b>${mem.toFixed(0)}MB</b></div>
-          <div class="metric">Uptime <b>${hasRunning ? `${String(upHr).padStart(2, '0')}h ${String(upMin).padStart(2, '0')}m` : 'offline'}</b></div>
+          <div class="metrics">
+            <div class="metric">CPU <b>${hasRunning ? `${cpu}%` : '--'}</b></div>
+            <div class="metric">Memory <b>${mem.toFixed(0)}MB</b></div>
+            <div class="metric">Uptime <b>${hasRunning ? `${String(upHr).padStart(2, '0')}h ${String(upMin).padStart(2, '0')}m` : 'offline'}</b></div>
+          </div>
           <div class="ports">
             ${portLine}
             ${status}
             ${primaryPorts}
-          </div>
-          <div class="actions">
-            <span>\u25B6</span>
-            <span>\u25A0</span>
-            <span>\u27F3</span>
           </div>
         </div>
         <details class="more" data-detail-key="${detailKey}" ${isOpen ? 'open' : ''}>
@@ -704,6 +811,20 @@ function render(groups, groupBy) {
       if (!k) return;
       if (d.open) openDetails.add(k);
       else openDetails.delete(k);
+    });
+  });
+
+  root.querySelectorAll('.js-action').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const action = btn.getAttribute('data-action');
+      const namesRaw = btn.getAttribute('data-names') || '';
+      const names = namesRaw
+        .split(',')
+        .map(x => x.trim())
+        .filter(Boolean)
+        .map(x => decodeURIComponent(x));
+      if (!action || !names.length) return;
+      await runContainerAction(action, names);
     });
   });
 }
@@ -823,7 +944,7 @@ def get_docker_container_rows():
                     continue
 
                 for b in bindings:
-                    host_ip = b.get("HostIp", "0.0.0.0")
+                    host_ip = b.get("HostIp") or "unknown"
                     host_port = b.get("HostPort")
                     if host_port:
                         try:
@@ -864,8 +985,8 @@ def get_docker_container_rows():
                 "status": container_status or "unknown",
                 "source": "docker",
             })
-        except Exception:
-            continue
+        except Exception as exc:
+            app.logger.debug("Skipping container row due to parsing error: %s", exc)
 
     return rows
 
@@ -928,6 +1049,45 @@ def api_processes():
     return jsonify(rows)
 
 
+@app.route('/api/container-action', methods=['POST'])
+def api_container_action():
+    if docker is None:
+        return jsonify({"ok": False, "error": "Docker SDK is not available"}), 500
+
+    payload = request.get_json(silent=True) or {}
+    action = str(payload.get('action') or '').strip().lower()
+    names = payload.get('names') or []
+    if action not in {'start', 'stop', 'restart'}:
+        return jsonify({"ok": False, "error": "Invalid action"}), 400
+    if not isinstance(names, list) or not names:
+        return jsonify({"ok": False, "error": "No container names provided"}), 400
+
+    try:
+        client = docker.from_env()
+    except Exception:
+        return jsonify({"ok": False, "error": "Cannot connect to Docker Engine"}), 500
+
+    results = []
+    for raw_name in names:
+        name = str(raw_name or '').strip().strip('/')
+        if not name:
+            continue
+        try:
+            c = client.containers.get(name)
+            if action == 'start':
+                c.start()
+            elif action == 'stop':
+                c.stop(timeout=10)
+            else:
+                c.restart(timeout=10)
+            results.append({"name": name, "ok": True})
+        except Exception as exc:
+            results.append({"name": name, "ok": False, "error": str(exc)})
+
+    ok = all(r.get("ok") for r in results) if results else False
+    return jsonify({"ok": ok, "results": results}), (200 if ok else 207)
+
+
 @app.route('/api/system-health')
 def api_system_health():
     disk_free_percent = -1.0
@@ -949,14 +1109,18 @@ def api_system_health():
             running = 0
             total = 0
 
+    protected_raw = os.environ.get("PORT_DASHBOARD_PROTECTED_NAMES", "port-dashboard")
+    protected_names = [x.strip() for x in protected_raw.split(",") if x.strip()]
+
     return jsonify({
         "running_containers": running,
         "total_containers": total,
         "disk_free_percent": disk_free_percent,
+        "protected_names": protected_names,
     })
 
 
 if __name__ == '__main__':
-    host = os.environ.get('PORT_DASHBOARD_HOST', '0.0.0.0')
+    host = os.environ.get('PORT_DASHBOARD_HOST', '127.0.0.1')
     port = int(os.environ.get('PORT_DASHBOARD_PORT', '5001'))
     app.run(host=host, port=port, debug=False)
