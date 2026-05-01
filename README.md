@@ -103,4 +103,4 @@ This app depends on `psutil` to inspect OS processes and listening ports.
 
 ## License
 
-Add your preferred license here.
+
