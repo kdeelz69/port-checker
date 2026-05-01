@@ -9,7 +9,7 @@ pipeline {
   parameters {
     string(name: 'REPO_URL', defaultValue: 'https://github.com/kdeelz69/port-checker.git', description: 'Git repository URL')
     string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to deploy')
-    string(name: 'DEPLOY_DIR', defaultValue: '/var/jenkins_home/port-checker', description: 'Deploy directory')
+    string(name: 'DEPLOY_DIR', defaultValue: '/var/jenkins_home/port-checker', description: 'Deploy directory inside Jenkins container')
     string(name: 'APP_PORT', defaultValue: '5001', description: 'App port')
   }
 
@@ -24,8 +24,8 @@ pipeline {
       steps {
         sh """
           set -eu
-          mkdir -p "${params.DEPLOY_DIR}"
-          rsync -a --delete --exclude ".git" --exclude ".venv" ./ "${params.DEPLOY_DIR}/"
+          mkdir -p '${params.DEPLOY_DIR}'
+          rsync -a --delete --exclude '.git' --exclude '.venv' ./ '${params.DEPLOY_DIR}/'
         """
       }
     }
@@ -34,7 +34,7 @@ pipeline {
       steps {
         sh """
           set -eu
-          cd "${params.DEPLOY_DIR}"
+          cd '${params.DEPLOY_DIR}'
 
           if docker compose version >/dev/null 2>&1; then
             docker compose up -d --build
@@ -53,7 +53,7 @@ pipeline {
         sh """
           set -eu
           sleep 10
-          curl -fsS "http://127.0.0.1:${params.APP_PORT}/api/system-health"
+          curl -fsS 'http://127.0.0.1:${params.APP_PORT}/api/system-health'
         """
       }
     }
@@ -61,10 +61,10 @@ pipeline {
 
   post {
     success {
-      echo "Deployment succeeded."
+      echo 'Deployment succeeded.'
     }
     failure {
-      echo "Deployment failed. Check Console Output."
+      echo 'Deployment failed. Check Console Output.'
     }
   }
 }
