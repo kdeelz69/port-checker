@@ -31,14 +31,14 @@ HTML = r'''<!doctype html>
   <link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f3f5fa;
+      --bg: #f3f6fb;
       --panel: #ffffff;
-      --line: #dfe4eb;
-      --line-soft: #e8edf3;
-      --text: #243243;
-      --muted: #7c8997;
+      --line: #d6deea;
+      --line-soft: #e8edf4;
+      --text: #0d1730;
+      --muted: #5f708a;
       --teal: #1fa687;
-      --blue: #2d71d2;
+      --blue: #3566c9;
       --orange: #d08742;
       --danger: #cf5656;
       --ok-bg: #e5f7f1;
@@ -48,70 +48,90 @@ HTML = r'''<!doctype html>
     body {
       margin: 0;
       font-family: "Ubuntu", "Segoe UI", ui-sans-serif, system-ui, -apple-system, Arial, sans-serif;
+      font-weight: 400;
       background: var(--bg);
       color: var(--text);
+      min-height: 100vh;
+      position: relative;
     }
     .wrap {
       width: 100%;
-      max-width: 1400px;
+      max-width: 1320px;
       margin: 0 auto;
-      padding: 14px 22px 24px;
+      padding: 28px 44px 44px;
+      position: relative;
+      z-index: 2;
     }
     .top {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 14px;
-      margin-bottom: 12px;
+      gap: 12px;
+      margin-bottom: 18px;
     }
     h1 {
       margin: 0;
-      font-size: 50px;
+      font-size: 58px;
       font-weight: 800;
+      letter-spacing: -0.02em;
     }
     .sub {
       color: var(--muted);
       max-width: 760px;
-      line-height: 1.45;
+      line-height: 1.35;
+      font-size: 16px;
+      font-weight: 500;
       margin: 0;
     }
     .sub-top-right {
-      font-size: 11px;
+      font-size: 12px;
       color: #4f6673;
       border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 6px 8px;
-      background: #f4f7f6;
+      border-radius: 999px;
+      padding: 10px 16px;
+      background: #f5f8fc;
       margin-top: 6px;
+      font-weight: 400;
     }
     .toolbar {
       display: grid;
-      grid-template-columns: 1fr 150px 150px 120px;
-      gap: 8px;
-      margin-bottom: 14px;
+      grid-template-columns: 1fr auto 150px auto 150px 140px;
+      gap: 12px;
+      margin-bottom: 22px;
       border: 1px solid var(--line);
       background: var(--panel);
-      border-radius: 12px;
-      padding: 12px;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: none;
     }
     input, select, button {
       width: 100%;
-      padding: 11px 12px;
-      border-radius: 10px;
+      padding: 12px 14px;
+      border-radius: 16px;
       border: 1px solid var(--line-soft);
       background: #f8fbfa;
       color: var(--text);
       outline: none;
-      font-size: 16px;
+      font-size: 14px;
     }
-    input::placeholder { color: #8c9ca3; }
+    input::placeholder { color: #7789a2; }
     select { color: #4d5f6a; }
+    .toolbar-label {
+      display: flex;
+      align-items: center;
+      color: #7f93b1;
+      font-size: 19px;
+      font-weight: 500;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding-left: 6px;
+    }
     button {
       cursor: pointer;
-      background: #e8f0ef;
-      color: #355a63;
-      font-weight: 700;
-      border: 1px solid #cfdbd8;
+      background: #0b1838;
+      color: #eef3fb;
+      font-weight: 500;
+      border: 1px solid #091228;
     }
     input:focus, select:focus, button:focus {
       border-color: #80b9b0;
@@ -120,25 +140,46 @@ HTML = r'''<!doctype html>
     .stats {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-      margin-bottom: 14px;
+      gap: 30px;
+      margin-bottom: 34px;
     }
     .card {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 12px;
+      border-radius: 20px;
+      padding: 26px 30px;
+      box-shadow: none;
+      position: relative;
+    }
+    .stats .card::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 5px;
+      border-radius: 0 0 20px 20px;
+      background: #2f79ed;
+    }
+    .stats .card:nth-child(2)::after { background: #14b57a; }
+    .stats .card:nth-child(3)::after { background: #8559f2; }
+    .stats .card:nth-child(4)::after { background: #ef9413; }
+    .stats .card .value {
+      color: #0b1731;
+    }
+    #statUptime {
+      font-size: 52px !important;
     }
     .label {
       color: #6e7b82;
-      font-size: 10px;
+      font-size: 11px;
       text-transform: uppercase;
-      letter-spacing: .08em;
-      margin-bottom: 8px;
-      font-weight: 700;
+      letter-spacing: .11em;
+      margin-bottom: 10px;
+      font-weight: 500;
     }
     .value {
-      font-size: 46px;
+      font-size: 52px;
       font-weight: 800;
       line-height: 1;
       display: inline-block;
@@ -150,40 +191,42 @@ HTML = r'''<!doctype html>
     }
     .grid {
       display: grid;
-      gap: 8px;
+      gap: 16px;
       padding: 0 6px;
     }
     .section-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin: 10px 0 8px;
+      margin: 10px 0 12px;
     }
     .section-title {
-      font-size: 44px;
+      font-size: 54px;
       font-weight: 800;
+      letter-spacing: -0.02em;
     }
-    .right-meta { display: flex; gap: 6px; }
+    .right-meta { display: flex; gap: 14px; }
     .meta-pill {
-      font-size: 10px;
-      color: #4f6170;
+      font-size: 14px;
+      color: #344965;
       border: 1px solid var(--line);
-      border-radius: 5px;
-      padding: 5px 8px;
-      background: #f4f7f6;
+      border-radius: 14px;
+      padding: 10px 18px;
+      background: #f8fbff;
+      font-weight: 500;
     }
     .project-card {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: 13px;
       overflow: hidden;
     }
     .project-main {
       display: grid;
       grid-template-columns: minmax(260px, 1.25fr) minmax(420px, 1fr) minmax(360px, auto);
-      gap: 16px;
+      gap: 20px;
       align-items: center;
-      padding: 18px 20px;
+      padding: 16px 16px;
     }
     .metrics {
       display: grid;
@@ -198,35 +241,35 @@ HTML = r'''<!doctype html>
     }
     .namecol {
       display: grid;
-      gap: 8px;
+      gap: 9px;
     }
     .logo {
-      width: 44px;
-      height: 44px;
-      border-radius: 10px;
+      width: 40px;
+      height: 40px;
+      border-radius: 9px;
       background: #138f8f;
       color: #fff;
-      font-size: 20px;
+      font-size: 18px;
       font-weight: 800;
       display: flex;
       align-items: center;
       justify-content: center;
     }
     .title {
-      font-size: 34px;
+      font-size: 38px;
       font-weight: 750;
       margin: 0 0 3px;
     }
     .meta {
       color: #74858e;
-      font-size: 14px;
+      font-size: 13px;
       word-break: break-word;
     }
     .metric {
-      font-size: 12px;
+      font-size: 11px;
       color: #6d7d85;
       text-transform: uppercase;
-      font-weight: 700;
+      font-weight: 500;
       letter-spacing: .05em;
       white-space: nowrap;
       display: flex;
@@ -238,7 +281,7 @@ HTML = r'''<!doctype html>
     .metric b {
       margin-left: 0;
       color: #183542;
-      font-size: 18px;
+      font-size: 33px;
       letter-spacing: 0;
       text-transform: none;
       line-height: 1;
@@ -265,7 +308,7 @@ HTML = r'''<!doctype html>
       padding: 4px 8px;
       font-size: 12px;
       color: #1e7d6b;
-      font-weight: 700;
+      font-weight: 500;
     }
     .chip.warn {
       border: 1px solid #e2c8b3;
@@ -274,7 +317,7 @@ HTML = r'''<!doctype html>
       padding: 4px 8px;
       font-size: 12px;
       color: var(--orange);
-      font-weight: 700;
+      font-weight: 500;
     }
     .status-badge {
       font-size: 13px;
@@ -283,7 +326,7 @@ HTML = r'''<!doctype html>
       border: 1px solid #b8ddd4;
       background: var(--ok-bg);
       color: var(--ok-fg);
-      font-weight: 700;
+      font-weight: 500;
       text-transform: uppercase;
       white-space: nowrap;
     }
@@ -304,7 +347,7 @@ HTML = r'''<!doctype html>
       flex-wrap: wrap;
       color: #80929b;
       font-size: 13px;
-      font-weight: 800;
+      font-weight: 500;
     }
     .action-btn {
       border: 1px solid #bdd1cd;
@@ -313,10 +356,10 @@ HTML = r'''<!doctype html>
       border-radius: 8px;
       padding: 10px 14px;
       font-size: 14px;
-      font-weight: 700;
+      font-weight: 500;
       cursor: pointer;
       width: auto;
-      min-width: 90px;
+      min-width: 74px;
       transition: background .15s ease, border-color .15s ease, transform .06s ease;
       white-space: nowrap;
     }
@@ -336,7 +379,7 @@ HTML = r'''<!doctype html>
       padding: 10px 20px;
       color: #56707b;
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 500;
       text-align: center;
       user-select: none;
       border-top: 1px solid var(--line-soft);
@@ -348,7 +391,7 @@ HTML = r'''<!doctype html>
       border-collapse: collapse;
       font-size: 12px;
       border: 1px solid var(--line-soft);
-      border-radius: 6px;
+      border-radius: 8px;
       overflow: hidden;
       background: #f8fbfa;
     }
@@ -464,7 +507,7 @@ HTML = r'''<!doctype html>
       .ports { grid-column: 1 / -1; justify-content: flex-start; }
     }
     @media (max-width: 900px) {
-      h1 { font-size: 36px; }
+      h1 { font-size: 34px; }
       .top { flex-direction: column; align-items: stretch; }
       .toolbar, .stats { grid-template-columns: 1fr; }
       .project-main { grid-template-columns: 1fr; }
@@ -473,9 +516,10 @@ HTML = r'''<!doctype html>
       .ports { margin-top: 4px; }
     }
     @media (max-width: 560px) {
-      h1 { font-size: 30px; }
-      .section-title { font-size: 24px; }
+      h1 { font-size: 28px; }
+      .section-title { font-size: 30px; }
       .right-meta { display: none; }
+      .wrap { padding: 18px 16px 28px; }
     }
   </style>
 </head>
@@ -495,15 +539,17 @@ HTML = r'''<!doctype html>
 
     <div class="toolbar">
       <input id="search" placeholder="Search project, path, process, command, or port" />
+      <div class="toolbar-label">Sort</div>
       <select id="sortBy" title="Sort">
-        <option value="project">Sort: Name</option>
-        <option value="ports">Sort: Port count</option>
-        <option value="processes">Sort: Process count</option>
+        <option value="project">Name</option>
+        <option value="ports">Port count</option>
+        <option value="processes">Process count</option>
       </select>
+      <div class="toolbar-label">Group</div>
       <select id="groupBy" title="Group">
-        <option value="project">Group: Project</option>
-        <option value="cwd">Group: Working dir</option>
-        <option value="exe">Group: Executable path</option>
+        <option value="project">Project</option>
+        <option value="cwd">Working dir</option>
+        <option value="exe">Executable path</option>
       </select>
       <button id="refreshBtn">Refresh</button>
     </div>
@@ -528,7 +574,7 @@ HTML = r'''<!doctype html>
     </div>
 
     <div class="section-head">
-      <div class="section-title">Active Projects</div>
+      <div class="section-title"></div>
       <div class="right-meta">
         <div class="meta-pill">Sort by <span id="sortView">Name</span></div>
         <div class="meta-pill">Filters</div>
