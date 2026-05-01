@@ -24,14 +24,14 @@ pipeline {
       steps {
         sh """
           set -eu
-          TARGET_DIR="${params.DEPLOY_DIR}"
+          params.DEPLOY_DIR="${params.DEPLOY_DIR}"
           if ! mkdir -p "${params.DEPLOY_DIR}" 2>/dev/null; then
-            TARGET_DIR="${WORKSPACE}/.deploy"
-            mkdir -p "${TARGET_DIR}"
-            echo "DEPLOY_DIR not writable. Falling back to ${TARGET_DIR}"
+            params.DEPLOY_DIR="${WORKSPACE}/.deploy"
+            mkdir -p "${params.DEPLOY_DIR}"
+            echo "DEPLOY_DIR not writable. Falling back to ${params.DEPLOY_DIR}"
           fi
-          printf '%s' "${TARGET_DIR}" > .deploy_dir_path
-          rsync -a --delete --exclude ".git" --exclude ".venv" ./ "${TARGET_DIR}/"
+          printf '%s' "${params.DEPLOY_DIR}" > .deploy_dir_path
+          rsync -a --delete --exclude ".git" --exclude ".venv" ./ "${params.DEPLOY_DIR}/"
         """
       }
     }
@@ -40,8 +40,8 @@ pipeline {
       steps {
         sh """
           set -eu
-          TARGET_DIR="\$(cat .deploy_dir_path)"
-          cd "${TARGET_DIR}"
+          params.DEPLOY_DIR="\$(cat .deploy_dir_path)"
+          cd "${params.DEPLOY_DIR}"
 
           if docker compose version >/dev/null 2>&1; then
             docker compose up -d --build
