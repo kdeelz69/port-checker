@@ -9,8 +9,8 @@ pipeline {
   parameters {
     string(name: 'REPO_URL', defaultValue: 'https://github.com/kdeelz69/port-checker.git', description: 'Git repository URL')
     string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to deploy')
-    string(name: 'DEPLOY_DIR', defaultValue: '/opt/port-checker', description: 'Target directory inside Jenkins container')
-    string(name: 'APP_PORT', defaultValue: '5001', description: 'Published HTTP port from docker-compose.yml')
+    string(name: 'DEPLOY_DIR', defaultValue: '/var/jenkins_home/port-checker', description: 'Deploy directory')
+    string(name: 'APP_PORT', defaultValue: '5001', description: 'App port')
   }
 
   stages {
@@ -24,13 +24,7 @@ pipeline {
       steps {
         sh """
           set -eu
-          params.DEPLOY_DIR="${params.DEPLOY_DIR}"
-          if ! mkdir -p "${params.DEPLOY_DIR}" 2>/dev/null; then
-            params.DEPLOY_DIR="${WORKSPACE}/.deploy"
-            mkdir -p "${params.DEPLOY_DIR}"
-            echo "DEPLOY_DIR not writable. Falling back to ${params.DEPLOY_DIR}"
-          fi
-          printf '%s' "${params.DEPLOY_DIR}" > .deploy_dir_path
+          mkdir -p "${params.DEPLOY_DIR}"
           rsync -a --delete --exclude ".git" --exclude ".venv" ./ "${params.DEPLOY_DIR}/"
         """
       }
@@ -40,7 +34,6 @@ pipeline {
       steps {
         sh """
           set -eu
-          params.DEPLOY_DIR="\$(cat .deploy_dir_path)"
           cd "${params.DEPLOY_DIR}"
 
           if docker compose version >/dev/null 2>&1; then
