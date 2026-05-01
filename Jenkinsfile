@@ -13,6 +13,7 @@ pipeline {
     string(name: 'SERVER_USER', defaultValue: 'ubuntu', description: 'SSH user')
     string(name: 'DEPLOY_DIR', defaultValue: '/opt/port-checker', description: 'Directory on server')
     string(name: 'APP_PORT', defaultValue: '5001', description: 'App port')
+    string(name: 'KNOWN_HOSTS_CREDENTIAL_ID', defaultValue: 'deploy-known-hosts', description: 'Jenkins file credential id for known_hosts')
   }
 
   stages {
@@ -26,32 +27,37 @@ pipeline {
 
     stage('Deploy to Server') {
       steps {
-        sshagent(credentials: ['deploy-ssh-key']) {
-          sh """
-            set -eu
+        withCredentials([file(credentialsId: "${params.KNOWN_HOSTS_CREDENTIAL_ID}", variable: 'KNOWN_HOSTS_FILE')]) {
+          sshagent(credentials: ['deploy-ssh-key']) {
+            sh """
+              set -eu
 
-            echo "Creating deploy directory on server..."
-            ssh -o StrictHostKeyChecking=no ${params.SERVER_USER}@${params.SERVER_IP} \\
-              "mkdir -p ${params.DEPLOY_DIR}"
+              SSH_OPTS="-o StrictHostKeyChecking=yes -o UserKnownHostsFile=${KNOWN_HOSTS_FILE}"
 
-            echo "Syncing files to server..."
-            rsync -avz --delete \\
-              --exclude '.git' \\
-              --exclude '.venv' \\
-              ./ ${params.SERVER_USER}@${params.SERVER_IP}:${params.DEPLOY_DIR}/
+              echo "Creating deploy directory on server..."
+              ssh \$SSH_OPTS ${params.SERVER_USER}@${params.SERVER_IP} \\
+                "mkdir -p ${params.DEPLOY_DIR}"
 
-            echo "Running Docker Compose on server..."
-            ssh -o StrictHostKeyChecking=no ${params.SERVER_USER}@${params.SERVER_IP} \\
-              "cd ${params.DEPLOY_DIR} && \\
-               if docker compose version >/dev/null 2>&1; then
-                 docker compose up -d --build
-               elif command -v docker-compose >/dev/null 2>&1; then
-                 docker-compose up -d --build
-               else
-                 echo 'Docker Compose not installed'
-                 exit 1
-               fi"
-          """
+              echo "Syncing files to server..."
+              rsync -avz --delete \\
+                --exclude '.git' \\
+                --exclude '.venv' \\
+                -e "ssh \$SSH_OPTS" \\
+                ./ ${params.SERVER_USER}@${params.SERVER_IP}:${params.DEPLOY_DIR}/
+
+              echo "Running Docker Compose on server..."
+              ssh \$SSH_OPTS ${params.SERVER_USER}@${params.SERVER_IP} \\
+                "cd ${params.DEPLOY_DIR} && \\
+                 if docker compose version >/dev/null 2>&1; then
+                   docker compose up -d --build
+                 elif command -v docker-compose >/dev/null 2>&1; then
+                   docker-compose up -d --build
+                 else
+                   echo 'Docker Compose not installed'
+                   exit 1
+                 fi"
+            """
+          }
         }
       }
     }

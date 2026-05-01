@@ -1,10 +1,14 @@
 import os
 import json
 import socket
+import base64
+import hmac
+import ipaddress
+import time
 from collections import defaultdict
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template_string, request
+from flask import Flask, jsonify, render_template_string, request, Response, session, redirect, url_for
 
 try:
     import psutil
@@ -19,6 +23,230 @@ except ImportError:
     docker = None
 
 app = Flask(__name__)
+secret_key = os.environ.get("PORT_DASHBOARD_SECRET_KEY", "").strip()
+if len(secret_key) < 32 or secret_key.lower() in {"change-this-secret-key", "changeme", "default", "secret"}:
+    raise SystemExit("PORT_DASHBOARD_SECRET_KEY must be set to a strong value (min 32 chars).")
+app.secret_key = secret_key
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Strict",
+    SESSION_COOKIE_SECURE=os.environ.get("PORT_DASHBOARD_COOKIE_SECURE", "1").strip().lower() in {"1", "true", "yes"},
+)
+LOGIN_LIMIT_BUCKETS = {}
+
+
+def _client_key():
+    ip = _client_ip() or "unknown"
+    ua = (request.headers.get("User-Agent") or "").strip()[:120]
+    return f"{ip}|{ua}"
+
+
+def _login_rate_limited():
+    max_attempts = int(os.environ.get("PORT_DASHBOARD_LOGIN_MAX_ATTEMPTS", "8"))
+    window_sec = int(os.environ.get("PORT_DASHBOARD_LOGIN_WINDOW_SEC", "300"))
+    now = int(time.time())
+    key = _client_key()
+    times = LOGIN_LIMIT_BUCKETS.get(key, [])
+    times = [t for t in times if now - t <= window_sec]
+    LOGIN_LIMIT_BUCKETS[key] = times
+    return len(times) >= max_attempts
+
+
+def _record_login_failure():
+    now = int(time.time())
+    key = _client_key()
+    times = LOGIN_LIMIT_BUCKETS.get(key, [])
+    times.append(now)
+    LOGIN_LIMIT_BUCKETS[key] = times
+
+
+def _split_csv_env(name):
+    raw = os.environ.get(name, "")
+    return [x.strip() for x in raw.split(",") if x.strip()]
+
+
+def _client_ip():
+    xff = (request.headers.get("X-Forwarded-For") or "").strip()
+    if xff:
+        return xff.split(",")[0].strip()
+    return (request.remote_addr or "").strip()
+
+
+def _ip_allowed(ip_text, allowed_entries):
+    if not allowed_entries:
+        return True
+    if not ip_text:
+        return False
+    try:
+        ip_obj = ipaddress.ip_address(ip_text)
+    except ValueError:
+        return False
+    for entry in allowed_entries:
+        try:
+            if "/" in entry:
+                if ip_obj in ipaddress.ip_network(entry, strict=False):
+                    return True
+            else:
+                if ip_obj == ipaddress.ip_address(entry):
+                    return True
+        except ValueError:
+            continue
+    return False
+
+
+def _unauthorized_response():
+    return Response("Unauthorized", 401)
+
+
+def _is_authenticated(for_api=False):
+    if session.get("authenticated") is True:
+        return True
+
+    # Optional IP allowlist gate.
+    allowed_ips = _split_csv_env("PORT_DASHBOARD_ALLOWED_IPS")
+    if allowed_ips and not _ip_allowed(_client_ip(), allowed_ips):
+        return False
+
+    # If neither auth method is configured, only allow when explicitly enabled.
+    api_token = os.environ.get("PORT_DASHBOARD_API_TOKEN", "")
+    user = os.environ.get("PORT_DASHBOARD_BASIC_AUTH_USER", "")
+    pwd = os.environ.get("PORT_DASHBOARD_BASIC_AUTH_PASS", "")
+    allow_anonymous = os.environ.get("PORT_DASHBOARD_ALLOW_ANONYMOUS", "0").strip().lower() in {"1", "true", "yes"}
+    if not api_token and not (user and pwd):
+        return allow_anonymous
+
+    # Browser route auth is session-only so logout always works.
+    if not for_api:
+        return False
+
+    # Token auth: X-API-Token or Authorization: Bearer <token>
+    hdr_token = (request.headers.get("X-API-Token") or "").strip()
+    authz = (request.headers.get("Authorization") or "").strip()
+    bearer = ""
+    if authz.lower().startswith("bearer "):
+        bearer = authz[7:].strip()
+    if api_token and (hmac.compare_digest(hdr_token, api_token) or hmac.compare_digest(bearer, api_token)):
+        return True
+
+    # Basic auth
+    if user and pwd and authz.lower().startswith("basic "):
+        enc = authz[6:].strip()
+        try:
+            decoded = base64.b64decode(enc).decode("utf-8")
+            given_user, given_pwd = decoded.split(":", 1)
+        except Exception:
+            return False
+        return hmac.compare_digest(given_user, user) and hmac.compare_digest(given_pwd, pwd)
+
+    return False
+
+
+@app.before_request
+def enforce_security():
+    if request.path in {"/login", "/logout"}:
+        return None
+    if request.path.startswith("/api/") or request.path == "/":
+        if request.path.startswith("/api/"):
+            if _is_authenticated(for_api=True):
+                return None
+            return _unauthorized_response()
+        if _is_authenticated(for_api=False):
+            return None
+        return redirect(url_for("login"))
+    return None
+
+
+@app.after_request
+def set_secure_headers(resp):
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "same-origin"
+    return resp
+
+
+LOGIN_HTML = r"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in - Port Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#f5f7fb; --card:#ffffff; --text:#1f2937; --muted:#6b7280; --line:#dbe2ec; --blue:#1a73e8; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; font-family:"Ubuntu",Arial,sans-serif; background:var(--bg); display:grid; place-items:center; color:var(--text); }
+    .card { width:min(420px,92vw); background:var(--card); border:1px solid var(--line); border-radius:16px; padding:28px 24px; box-shadow:0 10px 30px rgba(15,23,42,.06); }
+    .logo { width:44px; height:44px; border-radius:12px; background:#e8f0fe; color:var(--blue); font-weight:700; display:grid; place-items:center; margin-bottom:12px; }
+    h1 { margin:0 0 6px; font-size:28px; }
+    p { margin:0 0 18px; color:var(--muted); font-size:14px; }
+    label { display:block; margin:0 0 6px; font-size:13px; color:#4b5563; }
+    input { width:100%; border:1px solid var(--line); border-radius:12px; padding:12px; font-size:14px; margin-bottom:12px; }
+    button { width:100%; border:1px solid #1557b0; background:var(--blue); color:#fff; border-radius:12px; padding:12px; font-size:14px; font-weight:500; cursor:pointer; }
+    .err { margin:0 0 10px; color:#b42318; font-size:13px; }
+  </style>
+</head>
+<body>
+  <form method="post" class="card">
+    <div class="logo">P</div>
+    <h1>Sign in</h1>
+    <p>Port Dashboard access</p>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    {% if mode == 'basic' %}
+      <label>Username</label>
+      <input name="username" autocomplete="username" required />
+      <label>Password</label>
+      <input type="password" name="password" autocomplete="current-password" required />
+    {% else %}
+      <label>Access Token</label>
+      <input type="password" name="token" autocomplete="off" required />
+    {% endif %}
+    <button type="submit">Next</button>
+  </form>
+</body>
+</html>"""
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    api_token = os.environ.get("PORT_DASHBOARD_API_TOKEN", "")
+    basic_user = os.environ.get("PORT_DASHBOARD_BASIC_AUTH_USER", "")
+    basic_pass = os.environ.get("PORT_DASHBOARD_BASIC_AUTH_PASS", "")
+    mode = "basic" if (basic_user and basic_pass) else "token"
+    error = ""
+
+    if request.method == "POST":
+        if _login_rate_limited():
+            return render_template_string(LOGIN_HTML, mode=mode, error="Too many attempts. Try again later."), 429
+        if mode == "basic":
+            u = str(request.form.get("username") or "")
+            p = str(request.form.get("password") or "")
+            if hmac.compare_digest(u, basic_user) and hmac.compare_digest(p, basic_pass):
+                session["authenticated"] = True
+                return redirect(url_for("index"))
+        else:
+            t = str(request.form.get("token") or "")
+            if api_token and hmac.compare_digest(t, api_token):
+                session["authenticated"] = True
+                return redirect(url_for("index"))
+        _record_login_failure()
+        error = "Invalid credentials"
+
+    if not api_token and not (basic_user and basic_pass):
+        return Response("No auth method configured", 500)
+    return render_template_string(LOGIN_HTML, mode=mode, error=error)
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    resp = redirect(url_for("login"))
+    resp.delete_cookie(app.config.get("SESSION_COOKIE_NAME", "session"))
+    return resp
 
 HTML = r'''<!doctype html>
 <html lang="en">
@@ -69,6 +297,12 @@ HTML = r'''<!doctype html>
       gap: 12px;
       margin-bottom: 18px;
     }
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
     h1 {
       margin: 0;
       font-size: 58px;
@@ -90,8 +324,17 @@ HTML = r'''<!doctype html>
       border-radius: 999px;
       padding: 10px 16px;
       background: #f5f8fc;
-      margin-top: 6px;
       font-weight: 400;
+    }
+    .logout-btn {
+      width: auto;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      color: #1f2d44;
+      font-size: 12px;
+      font-weight: 500;
     }
     .toolbar {
       display: grid;
@@ -533,7 +776,12 @@ HTML = r'''<!doctype html>
         <h1>Project Port Dashboard</h1>
         <div class="sub">Real-time infrastructure monitoring and process control hub.</div>
       </div>
-      <div class="sub-top-right">Last Refresh: <span id="topRefresh">--:--:--</span></div>
+      <div class="top-right">
+        <div class="sub-top-right">Last Refresh: <span id="topRefresh">--:--:--</span></div>
+        <form method="post" action="/logout" style="margin:0">
+          <button type="submit" class="logout-btn">Logout</button>
+        </form>
+      </div>
     </div>
     <div id="errorBanner" class="error-banner"></div>
 
@@ -654,8 +902,7 @@ function collectStats(groups) {
   document.getElementById('statProcesses').textContent = processes;
   const now = new Date().toLocaleTimeString();
   document.getElementById('topRefresh').textContent = now;
-  const uptime = Math.max(95.1, 100 - (processes > 0 ? (ports / (processes * 40)) * 10 : 1)).toFixed(1);
-  document.getElementById('statUptime').textContent = `${uptime}%`;
+  document.getElementById('statUptime').textContent = '--';
   const memEl = document.getElementById('memoryHealth');
   if (memEl) {
     if (memoryMb >= 4096) memEl.textContent = `HIGH (${memoryMb.toFixed(0)}MB)`;
@@ -779,11 +1026,9 @@ function render(groups, groupBy) {
     const primaryPorts = formatPorts(group.items);
     const processCount = group.items.length;
     const hasRunning = group.runningCount > 0;
-    const cpu = hasRunning ? Math.min(92, 2 + group.portCount * 8 + processCount * 4) : null;
+    const cpu = null;
     const mem = group.items.reduce((n, x) => n + Number(x.memory_mb || 0), 0);
-    const upHr = (processCount * 7 + group.portCount * 3) % 48;
-    const upMin = (group.portCount * 13) % 60;
-    const hot = hasRunning && cpu >= 70;
+    const hot = false;
     const status = !hasRunning
       ? '<span class="status-badge stopped">Not Running</span>'
       : (group.runningCount < group.items.length
@@ -823,9 +1068,9 @@ function render(groups, groupBy) {
             </div>
           </div>
           <div class="metrics">
-            <div class="metric">CPU <b>${hasRunning ? `${cpu}%` : '--'}</b></div>
+            <div class="metric">CPU <b>n/a</b></div>
             <div class="metric">Memory <b>${mem.toFixed(0)}MB</b></div>
-            <div class="metric">Uptime <b>${hasRunning ? `${String(upHr).padStart(2, '0')}h ${String(upMin).padStart(2, '0')}m` : 'offline'}</b></div>
+            <div class="metric">Uptime <b>n/a</b></div>
           </div>
           <div class="ports">
             ${portLine}
@@ -1100,6 +1345,10 @@ def api_processes():
 
 @app.route('/api/container-action', methods=['POST'])
 def api_container_action():
+    actions_enabled = os.environ.get("PORT_DASHBOARD_ENABLE_ACTIONS", "0").strip().lower()
+    if actions_enabled not in {"1", "true", "yes"}:
+        return jsonify({"ok": False, "error": "Container actions are disabled"}), 403
+
     if docker is None:
         return jsonify({"ok": False, "error": "Docker SDK is not available"}), 500
 

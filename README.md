@@ -51,6 +51,8 @@ cd port-checker
 ## Run with Docker Compose
 
 ```bash
+cp .env.example .env
+# Edit .env with strong values before starting
 docker compose up --build -d
 ```
 
@@ -77,6 +79,25 @@ docker run --rm -p 5001:5001 --name port-checker port-checker
 - `PORT_DASHBOARD_PORT` (default: `5001`)
 - `PORT_DASHBOARD_MODE` (`docker` for container-only, `hybrid` for host + docker)
 - `INCLUDE_DOCKER_CONTAINERS` (default: `1`)
+- `PORT_DASHBOARD_ENABLE_ACTIONS` (default: `0`; set to `1` to allow start/stop/restart API)
+- `PORT_DASHBOARD_API_TOKEN` (optional; if set, requests must include `X-API-Token` or `Authorization: Bearer`)
+- `PORT_DASHBOARD_BASIC_AUTH_USER` + `PORT_DASHBOARD_BASIC_AUTH_PASS` (optional alternative auth mode)
+- `PORT_DASHBOARD_SECRET_KEY` (required for secure login sessions; set a long random value in production)
+- `PORT_DASHBOARD_COOKIE_SECURE` (default: `1`; set `0` only for local HTTP testing, keep `1` on HTTPS)
+- `PORT_DASHBOARD_ALLOWED_IPS` (optional comma-separated IP/CIDR allowlist, e.g. `127.0.0.1,10.0.0.0/8`)
+- `PORT_DASHBOARD_ALLOW_ANONYMOUS` (default: `0`; when `1`, allows access without configured login credentials)
+- `PORT_DASHBOARD_LOGIN_MAX_ATTEMPTS` (default: `8`)
+- `PORT_DASHBOARD_LOGIN_WINDOW_SEC` (default: `300`)
+
+## Security Notes (Important)
+
+- This app can control Docker containers when actions are enabled and Docker socket is mounted.
+- Keep it behind a reverse proxy/VPN or private network.
+- By default in this repo, published port is bound to localhost (`127.0.0.1:5001`) to reduce accidental exposure.
+- Before exposing beyond localhost, configure at least one auth mode (`PORT_DASHBOARD_API_TOKEN` or Basic Auth).
+- Browser access now uses `/login` form UI (instead of browser Basic Auth popup).
+- `PORT_DASHBOARD_SECRET_KEY` is mandatory and must be strong (min 32 chars) or app startup will fail.
+- Docker socket mount is disabled by default in `docker-compose.yml` due to host-level risk.
 
 ## Platform Notes (Important)
 
