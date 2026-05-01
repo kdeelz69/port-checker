@@ -52,8 +52,8 @@ pipeline {
       steps {
         sh """
           set -eu
-          sleep 10
-          curl -fsS 'http://127.0.0.1:${params.APP_PORT}/api/system-health'
+          sleep 15
+          curl -fsS "http://host.docker.internal:${params.APP_PORT}/api/system-health"
         """
       }
     }
