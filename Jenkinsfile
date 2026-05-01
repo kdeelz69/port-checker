@@ -9,7 +9,7 @@ pipeline {
   parameters {
     string(name: 'REPO_URL', defaultValue: 'https://github.com/kdeelz69/port-checker.git', description: 'Git repository URL')
     string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to deploy')
-    string(name: 'DEPLOY_DIR', defaultValue: '/opt/port-checker', description: 'Target directory on Jenkins host')
+    string(name: 'DEPLOY_DIR', defaultValue: '/opt/port-checker', description: 'Target directory inside Jenkins container')
     string(name: 'APP_PORT', defaultValue: '5001', description: 'Published HTTP port from docker-compose.yml')
   }
 
@@ -25,7 +25,7 @@ pipeline {
         sh '''
           set -eu
           mkdir -p "${DEPLOY_DIR}"
-          rsync -a --delete --exclude '.git' --exclude '.venv' ./ "${DEPLOY_DIR}/"
+          rsync -a --delete --exclude ".git" --exclude ".venv" ./ "${DEPLOY_DIR}/"
         '''
       }
     }
@@ -37,15 +37,13 @@ pipeline {
           cd "${DEPLOY_DIR}"
 
           if docker compose version >/dev/null 2>&1; then
-            COMPOSE_CMD="docker compose"
+            docker compose up -d --build
           elif command -v docker-compose >/dev/null 2>&1; then
-            COMPOSE_CMD="docker-compose"
+            docker-compose up -d --build
           else
-            echo "Docker Compose is not available on this Jenkins node."
+            echo "Docker Compose is not available."
             exit 1
           fi
-
-          $COMPOSE_CMD up -d --build
         '''
       }
     }
@@ -54,8 +52,8 @@ pipeline {
       steps {
         sh '''
           set -eu
-          sleep 6
-          curl -fsS "http://127.0.0.1:${APP_PORT}/api/system-health" >/dev/null
+          sleep 10
+          curl -fsS "http://127.0.0.1:${APP_PORT}/api/system-health"
         '''
       }
     }
@@ -66,7 +64,7 @@ pipeline {
       echo "Deployment succeeded."
     }
     failure {
-      echo "Deployment failed. Check build logs."
+      echo "Deployment failed. Check Console Output."
     }
   }
 }
