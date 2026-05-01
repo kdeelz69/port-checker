@@ -9,19 +9,18 @@ pipeline {
   parameters {
     string(name: 'REPO_URL', defaultValue: 'https://github.com/kdeelz69/port-checker.git', description: 'Git repository URL')
     string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to deploy')
-
     string(name: 'SERVER_IP', defaultValue: 'YOUR_SERVER_IP', description: 'Server IP')
     string(name: 'SERVER_USER', defaultValue: 'ubuntu', description: 'SSH user')
-
     string(name: 'DEPLOY_DIR', defaultValue: '/opt/port-checker', description: 'Directory on server')
     string(name: 'APP_PORT', defaultValue: '5001', description: 'App port')
   }
 
   stages {
-
     stage('Checkout') {
       steps {
-        git branch: "${params.BRANCH}", url: "${params.REPO_URL}"
+        git branch: "${params.BRANCH}",
+            url: "${params.REPO_URL}",
+            credentialsId: 'githubtoken'
       }
     }
 
