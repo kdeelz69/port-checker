@@ -22,19 +22,19 @@ pipeline {
 
     stage('Prepare Deploy Directory') {
       steps {
-        sh '''
+        sh """
           set -eu
-          mkdir -p "${DEPLOY_DIR}"
-          rsync -a --delete --exclude ".git" --exclude ".venv" ./ "${DEPLOY_DIR}/"
-        '''
+          mkdir -p "${params.DEPLOY_DIR}"
+          rsync -a --delete --exclude ".git" --exclude ".venv" ./ "${params.DEPLOY_DIR}/"
+        """
       }
     }
 
     stage('Deploy') {
       steps {
-        sh '''
+        sh """
           set -eu
-          cd "${DEPLOY_DIR}"
+          cd "${params.DEPLOY_DIR}"
 
           if docker compose version >/dev/null 2>&1; then
             docker compose up -d --build
@@ -44,17 +44,17 @@ pipeline {
             echo "Docker Compose is not available."
             exit 1
           fi
-        '''
+        """
       }
     }
 
     stage('Smoke Test') {
       steps {
-        sh '''
+        sh """
           set -eu
           sleep 10
-          curl -fsS "http://127.0.0.1:${APP_PORT}/api/system-health"
-        '''
+          curl -fsS "http://127.0.0.1:${params.APP_PORT}/api/system-health"
+        """
       }
     }
   }
