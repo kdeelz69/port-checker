@@ -14,9 +14,8 @@ services:
       PORT_DASHBOARD_MODE: docker
       INCLUDE_DOCKER_CONTAINERS: ${INCLUDE_DOCKER_CONTAINERS:-0}
       PORT_DASHBOARD_ENABLE_ACTIONS: ${PORT_DASHBOARD_ENABLE_ACTIONS:-0}
-    # SECURITY: docker socket is intentionally not mounted by default.
-    # If you explicitly need docker container visibility/control, uncomment below
-    # and keep this app on a private network only.
-    # volumes:
-    #   - /var/run/docker.sock:/var/run/docker.sock:ro
+    # SECURITY: mounting docker.sock gives broad control over Docker host.
+    # Keep this service private (localhost/VPN) and protect credentials.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped

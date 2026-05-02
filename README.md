@@ -3,6 +3,7 @@
 A Flask dashboard for monitoring Docker container service ports and runtime health.
 
 By default in this repository (`docker-compose.yml`), it runs in **Docker-only mode** (`PORT_DASHBOARD_MODE=docker`), so it tracks containers from the Docker Engine API, not general host OS processes.
+It currently runs in **monitor-only mode** with actions disabled (`PORT_DASHBOARD_ENABLE_ACTIONS=0`).
 
 ## UI Preview
 
@@ -92,12 +93,14 @@ docker run --rm -p 5001:5001 --name port-checker port-checker
 ## Security Notes (Important)
 
 - This app can control Docker containers when actions are enabled and Docker socket is mounted.
+- In this repo's current `.env`, actions are OFF (`PORT_DASHBOARD_ENABLE_ACTIONS=0`).
+- Only set `PORT_DASHBOARD_ENABLE_ACTIONS=1` when you intentionally need container start/stop/restart controls.
 - Keep it behind a reverse proxy/VPN or private network.
 - By default in this repo, published port is bound to localhost (`127.0.0.1:5001`) to reduce accidental exposure.
 - Before exposing beyond localhost, configure at least one auth mode (`PORT_DASHBOARD_API_TOKEN` or Basic Auth).
 - Browser access now uses `/login` form UI (instead of browser Basic Auth popup).
 - `PORT_DASHBOARD_SECRET_KEY` is mandatory and must be strong (min 32 chars) or app startup will fail.
-- Docker socket mount is disabled by default in `docker-compose.yml` due to host-level risk.
+- Docker socket mount is enabled in `docker-compose.yml` for container visibility/control and should be treated as high-risk.
 
 ## Platform Notes (Important)
 
