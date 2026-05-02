@@ -5,6 +5,7 @@ import base64
 import hmac
 import ipaddress
 import time
+import random
 from collections import defaultdict
 from pathlib import Path
 
@@ -37,11 +38,23 @@ LOGIN_LIMIT_BUCKETS = {}
 
 def _client_key():
     ip = _client_ip() or "unknown"
-    ua = (request.headers.get("User-Agent") or "").strip()[:120]
-    return f"{ip}|{ua}"
+    return ip
+
+
+def _prune_buckets():
+    now = int(time.time())
+    window_sec = int(os.environ.get("PORT_DASHBOARD_LOGIN_WINDOW_SEC", "300"))
+    stale = []
+    for key, times in LOGIN_LIMIT_BUCKETS.items():
+        if not any(now - t <= window_sec for t in times):
+            stale.append(key)
+    for key in stale:
+        del LOGIN_LIMIT_BUCKETS[key]
 
 
 def _login_rate_limited():
+    if random.random() < 0.05:
+        _prune_buckets()
     max_attempts = int(os.environ.get("PORT_DASHBOARD_LOGIN_MAX_ATTEMPTS", "8"))
     window_sec = int(os.environ.get("PORT_DASHBOARD_LOGIN_WINDOW_SEC", "300"))
     now = int(time.time())

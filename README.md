@@ -101,6 +101,26 @@ docker run --rm -p 5001:5001 --name port-checker port-checker
 - Browser access now uses `/login` form UI (instead of browser Basic Auth popup).
 - `PORT_DASHBOARD_SECRET_KEY` is mandatory and must be strong (min 32 chars) or app startup will fail.
 - Docker socket mount is enabled in `docker-compose.yml` for container visibility/control and should be treated as high-risk.
+- Login rate-limit counters are in-memory; they reset when the container restarts.
+
+## Security Hardening Implemented
+
+- Session auth with explicit `/login` and `/logout` flow.
+- Logout clears session and prevents cached dashboard reuse.
+- Secure cookie settings: `HttpOnly`, `SameSite=Strict`, and `Secure` (configurable via `PORT_DASHBOARD_COOKIE_SECURE`).
+- API/browser access controls with optional API token, optional Basic Auth, and optional IP/CIDR allowlist.
+- Anonymous access disabled by default (`PORT_DASHBOARD_ALLOW_ANONYMOUS=0`).
+- Login brute-force throttling via per-IP rate limiting.
+- Strong secret key enforcement at startup (app exits if key is weak/missing).
+- Container actions gated by `PORT_DASHBOARD_ENABLE_ACTIONS` (disabled by default).
+- Container runs as non-root user in Docker image.
+
+## Jenkins Security Notes
+
+- `Jenkinsfile` deploys over SSH using strict host key checking (`StrictHostKeyChecking=yes`).
+- `Jenkinsfile` expects a `known_hosts` file credential (`KNOWN_HOSTS_CREDENTIAL_ID`, default `deploy-known-hosts`).
+- `Jenkinsfile` uses SSH credentials (`deploy-ssh-key`) via Jenkins credential store.
+- Avoid storing tokens/passwords directly in `Jenkinsfile`; keep secrets in Jenkins credentials and/or server-side `.env`.
 
 ## Platform Notes (Important)
 
